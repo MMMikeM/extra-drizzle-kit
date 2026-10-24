@@ -31,6 +31,12 @@ export const readSnapshots = (out: string): Files =>
 		migrationFolders(out).map((folder) => [folder, JSON.parse(readFileSync(join(out, folder, "snapshot.json"), "utf8"))]),
 	)
 
+/** The snapshots no other snapshot names as a parent: the branches a new migration starts from. */
+export const leafIds = (files: Files): string[] => {
+	const parents = new Set(Object.values(files).flatMap((snapshot) => snapshot.prevIds))
+	return Object.values(files).map((snapshot) => snapshot.id).filter((id) => !parents.has(id))
+}
+
 export const folderOf = (files: Files, id: string): string | undefined =>
 	Object.keys(files).find((folder) => files[folder].id === id)
 

@@ -61,6 +61,14 @@ export interface ColumnsMaterializedViewBuilder<
 	TSchema extends string | undefined,
 > extends MaterializedViewOptions {
 	as(query: SQL): ColumnsView<TName, TColumns, TSchema>
+	/** A view that already exists and that drizzle-kit leaves alone, so any indexes on it are left alone too. */
+	existing(): PgMaterializedViewWithSelection<{
+		name: TName
+		schema: TSchema
+		existing: true
+		isAlias: false
+		selectedFields: PgBuildColumns<TName, TColumns>
+	}>
 }
 
 /** Drizzle's `pgMaterializedView`, plus the indexes that drizzle-kit can't declare on a materialized view. */

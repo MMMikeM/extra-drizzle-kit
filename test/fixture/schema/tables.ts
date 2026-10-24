@@ -9,3 +9,5 @@ export const customers = pgTable(variants.has("renamedTable") ? "clients" : "cus
 })
 
 export const products = pgTable("products", { id: integer("id").primaryKey(), label: text("label").notNull() })
+
+export const notes = variants.has("extraTable") ? pgTable("notes", { id: integer("id").primaryKey() }) : undefined

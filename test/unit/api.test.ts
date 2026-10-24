@@ -34,6 +34,12 @@ describe("pgMaterializedView", () => {
 		expect(declarations()).toEqual([])
 	})
 
+	it("keeps drizzle's existing(), and records nothing for an existing view", () => {
+		const mv = pgMaterializedView("legacy", { id: integer("id") }).existing()
+		expectTypeOf(mv.id).not.toBeAny()
+		expect(declarations()).toEqual([])
+	})
+
 	it("puts the indexes of a view in another Postgres schema there", async () => {
 		const mv = materializedViewIn(pgSchema("app"))("mv", { id: integer("id") }, (view) => [uniqueIndex().on(view.id)]).as(
 			sql`select 1 as id`,

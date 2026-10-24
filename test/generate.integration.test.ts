@@ -32,12 +32,15 @@ afterAll(async () => {
 	rmSync(out, { recursive: true, force: true })
 })
 
-const run = (command: string[], variant: string, migrationsOut = out) => {
-	const result = spawnSync(process.execPath, command, {
+const spawn = (command: string[], variant: string, migrationsOut = out) =>
+	spawnSync(process.execPath, command, {
 		cwd: fixture,
 		env: { ...process.env, SCHEMA_VARIANT: variant, MIGRATIONS_OUT: migrationsOut },
 		encoding: "utf8",
 	})
+
+const run = (command: string[], variant: string, migrationsOut = out) => {
+	const result = spawn(command, variant, migrationsOut)
 	if (result.status !== 0) throw new Error(`${command.join(" ")} failed:\n${result.stdout}\n${result.stderr}`)
 	return result
 }
@@ -153,6 +156,23 @@ describe("drizzle-matview-kit generate", () => {
 		expect(statementsOf(sqlOf(folders().at(-1)!))).toEqual(['DROP INDEX "search_index_id_idx";'])
 		await migrateAll()
 		expect(await indexesOnSearchIndex()).not.toContain("search_index_id_idx")
+	})
+
+	it("prints one JSON envelope for an index-only change with --output json", async () => {
+		const { stdout } = wrapped("newColumn,changedView,extraIndex", "--output", "json")
+		expect(JSON.parse(stdout)).toMatchObject({ status: "ok", dialect: "postgresql" })
+		await migrateAll()
+		wrapped("newColumn,changedView")
+		await migrateAll()
+	})
+
+	it("removes the migration kit wrote when the wrapper can't finish it", () => {
+		const before = folders()
+		const result = spawn([cli, "generate"], "newColumn,changedView,extraTable,strayIndex")
+		expect(result.status).toBe(1)
+		expect(result.stderr).toContain("isn't a materialized view in the schema")
+		expect(result.stderr).toContain("so the next run writes it again")
+		expect(folders()).toEqual(before)
 	})
 
 	describe("a table rename under a view that search_index reads", () => {

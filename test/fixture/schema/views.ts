@@ -30,3 +30,8 @@ export const searchIndex = pgMaterializedView(
 	union all
 	select 'products' as source_table, id, to_tsvector('simple', content) as content_tsv from ${productSearchData}
 `)
+
+// Declared but never exported, so kit's schema has no such view and the wrapper must refuse its index.
+if (variants.has("strayIndex")) {
+	pgMaterializedView("stray", { id: integer("id") }, (mv) => [uniqueIndex("stray_id_idx").on(mv.id)]).as(sql`select 1 as id`)
+}

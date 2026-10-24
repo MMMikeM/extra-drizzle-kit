@@ -39,6 +39,15 @@ const rowOfKey = (state: State, key: string): Row | undefined => {
 
 export type Renames = { hints: Hint[]; views: Map<string, string> }
 
+// Records that a view moved, keyed by its key in the starting state, so a view that kit moves twice (a schema
+// rename, then a rename of the view) maps straight from its first key to its last.
+const moveView = (views: Map<string, string>, from: Row, to: Row) => {
+	const fromKey = JSON.stringify([from.schema, from.name])
+	const toKey = JSON.stringify([to.schema, to.name])
+	const original = [...views].find(([, current]) => current === fromKey)?.[0] ?? fromKey
+	views.set(original, toKey)
+}
+
 /**
  * The hints that reproduce how kit resolved the new migration, whether the user answered a prompt or passed
  * `--hints`. A rename is stored as a `rename` delta. A "create" answer leaves only a drop and a create, so every
@@ -60,7 +69,13 @@ export const hintsOf = async (files: Files, snapshot: Snapshot, cur: State): Pro
 		const to = { ...from, ...renameDeltas[i].set } as Row
 		hints.push({ type: "rename", kind, from: idOf(kind, from), to: idOf(kind, to) } as unknown as Hint)
 		targets.add(JSON.stringify([kind, ...idOf(kind, to)]))
-		if (kind === "view") views.set(JSON.stringify([from.schema, from.name]), JSON.stringify([to.schema, to.name]))
+		if (kind === "view") moveView(views, from, to)
+		// A schema rename moves its views with it, as kit's ALTER SCHEMA does in Postgres.
+		if (kind === "schema") {
+			for (const view of before.ddl as Row[]) {
+				if (view.entityType === "views" && view.schema === from.name) moveView(views, view, { ...view, schema: to.name })
+			}
+		}
 	}
 
 	const renamed = await startingState(files, snapshot.prevIds, renameDeltas)

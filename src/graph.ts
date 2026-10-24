@@ -9,16 +9,20 @@ export const viewKey = ({ schema, name }: { schema: string; name: string }): Vie
 export const viewsOf = (ddl: Entity[]): Map<ViewKey, View> =>
 	new Map(ddl.filter((entity): entity is View => entity.entityType === "views").map((view) => [viewKey(view), view]))
 
-const skipQuoted = (sql: string, from: number, quote: string): number => {
+const skipQuoted = (sql: string, from: number, quote: string, backslashEscapes = false): number => {
 	let i = from + 1
 	while (i < sql.length) {
-		if (sql[i] === quote) {
+		if (backslashEscapes && sql[i] === "\\") i += 2
+		else if (sql[i] === quote) {
 			if (sql[i + 1] !== quote) return i + 1
 			i += 2
 		} else i += 1
 	}
 	return i
 }
+
+// A dollar-quote tag follows identifier rules; `$1` is a parameter, not a tag.
+const dollarTag = /^\$(?:[A-Za-z_][A-Za-z0-9_]*)?\$/
 
 /** The dotted name chains in a SQL text, outside strings and comments, with unquoted parts folded to lower case. */
 export const nameChains = (sql: string): string[][] => {
@@ -33,7 +37,10 @@ export const nameChains = (sql: string): string[][] => {
 	let i = 0
 	while (i < sql.length) {
 		const c = sql[i]
-		if (c === "'") {
+		if ((c === "E" || c === "e") && sql[i + 1] === "'" && !/[A-Za-z0-9_$]/.test(sql[i - 1] ?? "")) {
+			end()
+			i = skipQuoted(sql, i + 1, "'", true)
+		} else if (c === "'") {
 			end()
 			i = skipQuoted(sql, i, "'")
 		} else if (c === "-" && sql[i + 1] === "-") {
@@ -44,9 +51,9 @@ export const nameChains = (sql: string): string[][] => {
 			end()
 			const close = sql.indexOf("*/", i + 2)
 			i = close === -1 ? sql.length : close + 2
-		} else if (c === "$" && /^\$[A-Za-z_]*\$/.test(sql.slice(i))) {
+		} else if (c === "$" && dollarTag.test(sql.slice(i))) {
 			end()
-			const tag = sql.slice(i).match(/^\$[A-Za-z_]*\$/)![0]
+			const tag = sql.slice(i).match(dollarTag)![0]
 			const close = sql.indexOf(tag, i + tag.length)
 			i = close === -1 ? sql.length : close + tag.length
 		} else if (c === '"') {
