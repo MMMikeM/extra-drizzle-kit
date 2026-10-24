@@ -21,8 +21,13 @@ const skipQuoted = (sql: string, from: number, quote: string, backslashEscapes =
 	return i
 }
 
-// A dollar-quote tag follows identifier rules; `$1` is a parameter, not a tag.
-const dollarTag = /^\$(?:[A-Za-z_][A-Za-z0-9_]*)?\$/
+// Postgres identifiers may hold any letter, not only ASCII ones.
+const identifierStart = /[\p{L}_]/u
+const identifierPart = /[\p{L}\p{N}_$]/u
+const identifier = /^[\p{L}_][\p{L}\p{N}_$]*/u
+
+// A dollar-quote tag follows identifier rules, without `$`; `$1` is a parameter, not a tag.
+const dollarTag = /^\$(?:[\p{L}_][\p{L}\p{N}_]*)?\$/u
 
 /** The dotted name chains in a SQL text, outside strings and comments, with unquoted parts folded to lower case. */
 export const nameChains = (sql: string): string[][] => {
@@ -37,7 +42,7 @@ export const nameChains = (sql: string): string[][] => {
 	let i = 0
 	while (i < sql.length) {
 		const c = sql[i]
-		if ((c === "E" || c === "e") && sql[i + 1] === "'" && !/[A-Za-z0-9_$]/.test(sql[i - 1] ?? "")) {
+		if ((c === "E" || c === "e") && sql[i + 1] === "'" && !identifierPart.test(sql[i - 1] ?? "")) {
 			end()
 			i = skipQuoted(sql, i + 1, "'", true)
 		} else if (c === "'") {
@@ -63,8 +68,8 @@ export const nameChains = (sql: string): string[][] => {
 			chain.push(part)
 			afterDot = false
 			i = next
-		} else if (/[A-Za-z_]/.test(c)) {
-			const word = sql.slice(i).match(/^[A-Za-z_][A-Za-z0-9_$]*/)![0]
+		} else if (identifierStart.test(c)) {
+			const word = sql.slice(i).match(identifier)![0]
 			if (!afterDot) end()
 			chain.push(word.toLowerCase())
 			afterDot = false

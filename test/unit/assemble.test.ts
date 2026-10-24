@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm"
 import { generateDrizzleJson } from "drizzle-kit/api-postgres"
-import { index, integer, pgTable, pgView, text, uniqueIndex } from "drizzle-orm/pg-core"
+import { index, integer, pgSchema, pgTable, pgView, text, uniqueIndex } from "drizzle-orm/pg-core"
 import { describe, expect, it } from "vite-plus/test"
 import { assemble, needsRewrite, plan } from "../../src/assemble.ts"
 import { indexEntities } from "../../src/index-entities.ts"
@@ -63,5 +63,44 @@ describe("assemble", () => {
 			'DROP INDEX "search_index_id_idx";',
 			'CREATE INDEX "search_index_name_index" ON "search_index" ("name");',
 		])
+	})
+
+	it("drops a matview's index before a table takes its name in the same migration", async () => {
+		const before = await schemaState()
+		const after = await schemaState(undefined, () => [])
+		const notes = pgTable("notes", { id: integer("id") }, (t) => [index("search_index_id_idx").on(t.id)])
+		const cur = { ...after.state, ddl: [...after.state.ddl, ...(await generateDrizzleJson({ notes })).ddl] }
+		const statements = await assemble({ ...(await input(before, after)), cur })
+		expect(statements.indexOf('DROP INDEX "search_index_id_idx";')).toBeGreaterThanOrEqual(0)
+		expect(statements.indexOf('DROP INDEX "search_index_id_idx";')).toBeLessThan(
+			statements.findIndex((s) => s.startsWith('CREATE INDEX "search_index_id_idx" ON "notes"')),
+		)
+	})
+
+	it("creates a new extension first, after creating its schema when that is new too", async () => {
+		const v1 = await schemaState()
+		const extensions = pgSchema("extensions")
+		const cur = { ...v1.state, ddl: [...v1.state.ddl, ...(await generateDrizzleJson({ extensions })).ddl] }
+		const statements = await assemble({
+			...(await input(v1, v1)),
+			cur,
+			curExtensions: [
+				{ name: "pg_trgm", schema: null },
+				{ name: "vector", schema: "extensions" },
+			],
+		})
+		expect(statements.slice(0, 3)).toEqual([
+			'CREATE SCHEMA "extensions";\n',
+			'CREATE EXTENSION IF NOT EXISTS "pg_trgm";',
+			'CREATE EXTENSION IF NOT EXISTS "vector" WITH SCHEMA "extensions";',
+		])
+		expect(statements.filter((s) => s.startsWith("CREATE SCHEMA"))).toHaveLength(1)
+	})
+
+	it("never drops an extension that is no longer declared", async () => {
+		const v1 = await schemaState()
+		const p = plan({ ...(await input(v1, v1)), prevExtensions: [{ name: "pg_trgm", schema: null }] })
+		expect(p.removedExtensions).toEqual([{ name: "pg_trgm", schema: null }])
+		expect(needsRewrite(p)).toBe(false)
 	})
 })

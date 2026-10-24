@@ -50,13 +50,14 @@ const wrapped = (variant: string, ...args: string[]) => run([cli, "generate", ..
 /** Runs the wrapper on a copy of the migrations folder, and returns the new migration's statements. */
 const wrappedOnCopy = (variant: string, ...args: string[]) => {
 	const copy = mkdtempSync(join(scratch, "copy-"))
-	cpSync(out, copy, { recursive: true })
-	const before = new Set(folders(copy))
-	run([cli, "generate", ...args], variant, copy)
-	const folder = folders(copy).find((name) => !before.has(name))!
-	const sql = sqlOf(folder, copy)
-	rmSync(copy, { recursive: true, force: true })
-	return statementsOf(sql)
+	try {
+		cpSync(out, copy, { recursive: true })
+		const before = new Set(folders(copy))
+		run([cli, "generate", ...args], variant, copy)
+		return statementsOf(sqlOf(folders(copy).find((name) => !before.has(name))!, copy))
+	} finally {
+		rmSync(copy, { recursive: true, force: true })
+	}
 }
 
 const folders = (dir = out) => readdirSync(dir).filter((name) => existsSync(join(dir, name, "snapshot.json"))).sort()
@@ -65,13 +66,14 @@ const sqlOf = (folder: string, dir = out) => readFileSync(join(dir, folder, "mig
 /** What plain drizzle-kit would write for `variant`, generated into a copy of the migrations folder. */
 const plainKit = (variant: string) => {
 	const copy = mkdtempSync(join(scratch, "plain-"))
-	cpSync(out, copy, { recursive: true })
-	const before = new Set(folders(copy))
-	run([kitBin, "generate", "--name", "plain"], variant, copy)
-	const folder = folders(copy).find((name) => !before.has(name))!
-	const sql = sqlOf(folder, copy)
-	rmSync(copy, { recursive: true, force: true })
-	return sql
+	try {
+		cpSync(out, copy, { recursive: true })
+		const before = new Set(folders(copy))
+		run([kitBin, "generate", "--name", "plain"], variant, copy)
+		return sqlOf(folders(copy).find((name) => !before.has(name))!, copy)
+	} finally {
+		rmSync(copy, { recursive: true, force: true })
+	}
 }
 
 const migrateAll = () => migrate(drizzle({ client: pool }), { migrationsFolder: out })
@@ -105,7 +107,7 @@ const indexesOnSearchIndex = async () =>
 	)
 
 // One migrations folder and one database, so each test builds on the migrations the tests before it wrote.
-describe("drizzle-kit-matview generate", () => {
+describe("extra-drizzle-kit generate", () => {
 	it("creates the matview's indexes after the matview in the first migration", async () => {
 		wrapped("")
 		expect(folders()).toHaveLength(1)
@@ -158,6 +160,25 @@ describe("drizzle-kit-matview generate", () => {
 		expect(await indexesOnSearchIndex()).not.toContain("search_index_id_idx")
 	})
 
+	it("creates a declared extension before the index that needs it", async () => {
+		wrapped("newColumn,changedView,trigrams")
+		expect(statementsOf(sqlOf(folders().at(-1)!))).toEqual([
+			'CREATE EXTENSION IF NOT EXISTS "pg_trgm";',
+			'CREATE INDEX "search_index_source_table_trgm_idx" ON "search_index" USING gin ("source_table" gin_trgm_ops);',
+		])
+		await migrateAll()
+		expect(await indexesOnSearchIndex()).toContain("search_index_source_table_trgm_idx")
+	})
+
+	it("keeps an extension that is no longer declared, and says so", async () => {
+		const { stderr } = wrapped("newColumn,changedView")
+		expect(statementsOf(sqlOf(folders().at(-1)!))).toEqual(['DROP INDEX "search_index_source_table_trgm_idx";'])
+		expect(stderr).toContain("Extension pg_trgm is no longer declared")
+		await migrateAll()
+		const { rows } = await pool.query("SELECT extname FROM pg_extension WHERE extname = 'pg_trgm'")
+		expect(rows).toHaveLength(1)
+	})
+
 	it("prints one JSON envelope for an index-only change with --output json", async () => {
 		const { stdout } = wrapped("newColumn,changedView,extraIndex", "--output", "json")
 		expect(JSON.parse(stdout)).toMatchObject({ status: "ok", dialect: "postgresql" })
@@ -173,6 +194,12 @@ describe("drizzle-kit-matview generate", () => {
 		expect(result.stderr).toContain("isn't a materialized view in the schema")
 		expect(result.stderr).toContain("so the next run writes it again")
 		expect(folders()).toEqual(before)
+	})
+
+	it("prints no ok envelope for a migration it removed", () => {
+		const result = spawn([cli, "generate", "--output", "json"], "newColumn,changedView,extraTable,strayIndex")
+		expect(result.status).toBe(1)
+		expect(result.stdout).not.toContain('"ok"')
 	})
 
 	describe("a table rename under a view that search_index reads", () => {
@@ -219,6 +246,20 @@ describe("drizzle-kit-matview generate", () => {
 			expect(dropView).toBeGreaterThanOrEqual(0)
 			expect(dropView).toBeLessThan(alter)
 			await applyRolledBack(statements, async (client) => {
+				await client.query("REFRESH MATERIALIZED VIEW CONCURRENTLY search_index")
+			})
+		})
+	})
+
+	describe("an enum that loses a value under a view that search_index reads", () => {
+		const variant = "newColumn,changedView,droppedTier"
+
+		it("is needed: drizzle-kit alone retypes the enum's column under the view", async () => {
+			expect(await errorCode(applyRolledBack(statementsOf(plainKit(variant))))).toBe("0A000")
+		})
+
+		it("recreates the views around the enum's recreation", async () => {
+			await applyRolledBack(wrappedOnCopy(variant), async (client) => {
 				await client.query("REFRESH MATERIALIZED VIEW CONCURRENTLY search_index")
 			})
 		})

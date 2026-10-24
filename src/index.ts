@@ -13,7 +13,7 @@ import {
 } from "drizzle-orm/pg-core"
 import type { TypedQueryBuilder } from "drizzle-orm/query-builders/query-builder"
 import type { AddAliasToSelection } from "drizzle-orm/query-builders/select.types"
-import { declare, type Declaration } from "./registry.ts"
+import { declare, type Declaration, declareExtension, type Extension } from "./registry.ts"
 
 /**
  * The indexes of a materialized view, built with drizzle's `index()` and `uniqueIndex()` on its columns. A view
@@ -125,7 +125,7 @@ const withIndexes = (
  * Declares a materialized view, like drizzle's `pgMaterializedView`, and optionally its indexes.
  *
  * Pass the indexes as the third argument for a view with declared columns, as for `pgTable`, or as the second
- * argument of `.as()` for a view built with the query builder, which gets the view. `drizzle-kit-matview generate` writes them into the
+ * argument of `.as()` for a view built with the query builder, which gets the view. `extra-drizzle-kit generate` writes them into the
  * migration after the view, and recreates them whenever the view is recreated.
  *
  * @example
@@ -146,3 +146,22 @@ export const materializedViewIn = <TSchema extends string>(
 	withIndexes((name, columns) =>
 		columns ? schema.materializedView(name, columns) : schema.materializedView(name),
 	) as PgMaterializedViewWithIndexesFn<TSchema>
+
+/**
+ * Declares a Postgres extension the schema needs, such as `pg_trgm`, `vector` or `postgis`. The next migration
+ * that `extra-drizzle-kit generate` writes creates it, before anything that uses it.
+ *
+ * Removing the declaration doesn't drop the extension, because `DROP EXTENSION` can take columns and data with it.
+ *
+ * @example
+ * export const trigrams = pgExtension("pg_trgm")
+ * export const vectors = pgExtension("vector", { schema: "extensions" })
+ */
+export const pgExtension = (name: string, options: { schema?: string } = {}): Extension => {
+	const extension = { name, schema: options.schema ?? null }
+	declareExtension(extension)
+	return extension
+}
+
+export type { Extension }
+

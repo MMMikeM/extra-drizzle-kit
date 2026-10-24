@@ -38,7 +38,7 @@ export type Project = {
 const cliOnly = ["driver", "breakpoints", "schema", "out", "dialect"]
 
 const assertPostgres = (dialect: unknown) => {
-	if (dialect !== "postgresql") throw new Error(`drizzle-kit-matview supports only the postgresql dialect, not ${String(dialect)}.`)
+	if (dialect !== "postgresql") throw new Error(`extra-drizzle-kit supports only the postgresql dialect, not ${String(dialect)}.`)
 }
 
 export const loadProject = async (flags: Flags): Promise<Project> => {

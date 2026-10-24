@@ -1,4 +1,5 @@
 import type { Hint } from "drizzle-kit/api-postgres"
+import { viewKey } from "./graph.ts"
 import { type Delta, type Entity, type Files, type Snapshot, startingState, type State } from "./state.ts"
 
 type Kind = Extract<Hint, { type: "rename" }>["kind"]
@@ -42,8 +43,8 @@ export type Renames = { hints: Hint[]; views: Map<string, string> }
 // Records that a view moved, keyed by its key in the starting state, so a view that kit moves twice (a schema
 // rename, then a rename of the view) maps straight from its first key to its last.
 const moveView = (views: Map<string, string>, from: Row, to: Row) => {
-	const fromKey = JSON.stringify([from.schema, from.name])
-	const toKey = JSON.stringify([to.schema, to.name])
+	const fromKey = viewKey({ schema: from.schema!, name: from.name! })
+	const toKey = viewKey({ schema: to.schema!, name: to.name! })
 	const original = [...views].find(([, current]) => current === fromKey)?.[0] ?? fromKey
 	views.set(original, toKey)
 }

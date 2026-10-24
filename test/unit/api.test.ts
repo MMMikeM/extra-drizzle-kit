@@ -2,8 +2,8 @@ import { sql } from "drizzle-orm"
 import { index, integer, pgSchema, pgTable, text, uniqueIndex } from "drizzle-orm/pg-core"
 import { beforeEach, describe, expect, expectTypeOf, it } from "vite-plus/test"
 import { indexEntities } from "../../src/index-entities.ts"
-import { materializedViewIn, pgMaterializedView } from "../../src/index.ts"
-import { clearDeclarations, declarations } from "../../src/registry.ts"
+import { materializedViewIn, pgExtension, pgMaterializedView } from "../../src/index.ts"
+import { clearDeclarations, declarations, declaredExtensions } from "../../src/registry.ts"
 
 const users = pgTable("users", { id: integer("id").primaryKey(), name: text("name") })
 
@@ -69,3 +69,21 @@ describe("pgMaterializedView", () => {
 		await expect(indexEntities(declarations())).rejects.toThrow("isn't a column of the view")
 	})
 })
+
+describe("pgExtension", () => {
+	it("records each extension once, with its schema", () => {
+		pgExtension("pg_trgm")
+		pgExtension("pg_trgm")
+		pgExtension("vector", { schema: "extensions" })
+		expect(declaredExtensions()).toEqual([
+			{ name: "pg_trgm", schema: null },
+			{ name: "vector", schema: "extensions" },
+		])
+	})
+
+	it("refuses one extension declared in two schemas", () => {
+		pgExtension("vector")
+		expect(() => pgExtension("vector", { schema: "extensions" })).toThrow("declared twice")
+	})
+})
+

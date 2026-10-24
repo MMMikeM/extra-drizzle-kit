@@ -1,5 +1,5 @@
 {
-	"name": "@mmmike/drizzle-kit-matview",
+	"name": "@mmmike/extra-drizzle-kit",
 	"version": "1.0.0-rc.5",
 	"description": "Indexes on materialized views, and migrations that recreate the views that depend on a changed one, for drizzle-kit generate on Postgres.",
 	"keywords": [
@@ -20,7 +20,7 @@
 	],
 	"sideEffects": false,
 	"bin": {
-		"drizzle-kit-matview": "./dist/cli.mjs"
+		"extra-drizzle-kit": "./dist/cli.mjs"
 	},
 	"exports": {
 		".": {

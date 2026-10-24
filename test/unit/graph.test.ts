@@ -27,6 +27,10 @@ describe("nameChains", () => {
 		expect(nameChains(`select 'base_view' -- base_view\n/* base_view */ $$base_view$$, 1`)).toEqual([["select"]])
 	})
 
+	it("reads unquoted names with non-ASCII letters", () => {
+		expect(nameChains(`select * from café_view`)).toEqual([["select"], ["from"], ["café_view"]])
+	})
+
 	it("reads on after a backslash-escaped quote and a dollar quote with digits in its tag", () => {
 		expect(nameChains(String.raw`select E'it\'s' from base_view`)).toEqual([["select"], ["from"], ["base_view"]])
 		expect(nameChains(`select $fn1$ it's $fn1$ from base_view`)).toEqual([["select"], ["from"], ["base_view"]])

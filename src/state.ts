@@ -15,8 +15,8 @@ export type Files = Record<string, Snapshot>
 export const originId = "00000000-0000-0000-0000-000000000000"
 
 // Sorts after every folder kit names, because a snapshot's folder must sort after its parents' folders.
-const startFolder = "99999999999999_drizzle_kit_matview_start"
-const startId = "drizzle-kit-matview-start"
+const startFolder = "99999999999999_extra_drizzle_kit_start"
+const startId = "extra-drizzle-kit-start"
 
 export const migrationFolders = (out: string): string[] =>
 	existsSync(out)

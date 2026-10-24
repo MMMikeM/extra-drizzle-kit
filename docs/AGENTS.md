@@ -1,32 +1,38 @@
-# @mmmike/drizzle-kit-matview
+# @mmmike/extra-drizzle-kit
 
-This project generates its drizzle migrations with `@mmmike/drizzle-kit-matview`, so that materialized views keep
-their indexes and the views that depend on a changed view are recreated in order.
+This project generates its drizzle migrations with `@mmmike/extra-drizzle-kit`, so that materialized views keep
+their indexes, views that depend on a changed view or column are recreated in order, and extensions are created
+from the schema.
 
 ## Rules
 
-- **Generate migrations with `drizzle-kit-matview generate`, never `drizzle-kit generate`.** Pass the same
+- **Never run `drizzle-kit push` against this project's database.** It doesn't create the declared indexes or
+  extensions, and it never updates an edited view. Generate a migration and apply it with `drizzle-kit migrate`.
+- **Generate migrations with `extra-drizzle-kit generate`, never `drizzle-kit generate`.** Pass the same
   arguments you would pass to drizzle-kit. Plain `drizzle-kit generate` succeeds, but writes a migration that
   Postgres refuses with `2BP01` when a view that others read changes, and that loses the indexes of every
   materialized view it recreates.
 - **Declare materialized views with this package's `pgMaterializedView`**, imported from
-  `@mmmike/drizzle-kit-matview`, not drizzle's from `drizzle-orm/pg-core`. Use `materializedViewIn(schema)` for a
+  `@mmmike/extra-drizzle-kit`, not drizzle's from `drizzle-orm/pg-core`. Use `materializedViewIn(schema)` for a
   view outside `public`. It takes drizzle's arguments, plus the indexes.
-- **Declare indexes on a materialized view with drizzle's `index()` and `uniqueIndex()` in that argument.** Never
-  write `CREATE INDEX` for one in a custom migration, a hook, or the view's `.as()`.
+- **Declare indexes on a materialized view with drizzle's `index()` and `uniqueIndex()` in that argument.**
+  Never write `CREATE INDEX` for one in a custom migration, a hook, or the view's `.as()`.
+- **Declare extensions with `pgExtension("name")`** from `@mmmike/extra-drizzle-kit`, in a schema file. Never
+  write `CREATE EXTENSION` in a custom migration. Removing a declaration doesn't drop the extension; drop it by
+  hand only when the user asks.
 - **Don't edit a generated `migration.sql` by hand to reorder views or add indexes.** Change the schema and
   generate again.
-- **Commit each migration folder's `matview-indexes.json` with its `migration.sql` and `snapshot.json`.** Don't
-  delete it: the next generate reads it to know which indexes already exist.
-- **Run `drizzle-kit-matview baseline` only when the database already has the declared indexes** and the
-  migrations folder doesn't record them yet, for example when adopting the package.
+- **Commit each migration folder's `extra-drizzle-kit.json` with its `migration.sql` and `snapshot.json`.**
+  Don't delete it: the next generate reads it to know which indexes already exist.
+- **Run `extra-drizzle-kit baseline` only when the database already has the declared indexes or extensions** and
+  the migrations folder doesn't record them yet, for example when adopting the package.
 - **Answer drizzle-kit's rename questions as usual**, interactively or with `--hints`. The package reads the
   answers from the snapshot drizzle-kit writes.
 
 ## Declaring indexes
 
 ```ts
-import { pgMaterializedView } from "@mmmike/drizzle-kit-matview"
+import { pgMaterializedView } from "@mmmike/extra-drizzle-kit"
 
 // Declared columns: the indexes are the third argument, as for pgTable.
 export const userNames = pgMaterializedView("user_names", { id: integer("id"), name: text("name") }, (mv) => [

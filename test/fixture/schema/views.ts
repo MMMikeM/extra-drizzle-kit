@@ -1,16 +1,18 @@
 import { sql } from "drizzle-orm"
 import { customType, index, integer, pgView, text, uniqueIndex } from "drizzle-orm/pg-core"
-import { pgMaterializedView } from "../../../src/index"
+import { pgExtension, pgMaterializedView } from "../../../src/index"
 import { customers, products } from "./tables"
 
 const variants = new Set((process.env.SCHEMA_VARIANT ?? "").split(","))
+
+export const trigrams = variants.has("trigrams") ? pgExtension("pg_trgm") : undefined
 
 const tsvector = customType<{ data: string }>({ dataType: () => "tsvector" })
 
 export const customerSearchData = pgView("customer_search_data_view", { id: integer("id"), content: text("content") }).as(
 	variants.has("changedView")
-		? sql`select ${customers.id} as id, upper(${customers.name}) as content from ${customers}`
-		: sql`select ${customers.id} as id, ${customers.name} as content from ${customers}`,
+		? sql`select ${customers.id} as id, upper(${customers.name}) || ' ' || ${customers.tier} as content from ${customers}`
+		: sql`select ${customers.id} as id, ${customers.name} || ' ' || ${customers.tier} as content from ${customers}`,
 )
 
 export const productSearchData = pgView("product_search_data_view", { id: integer("id"), content: text("content") }).as(
@@ -24,6 +26,9 @@ export const searchIndex = pgMaterializedView(
 		uniqueIndex("search_index_source_table_id_idx").on(mv.sourceTable, mv.id),
 		index("search_index_content_tsv_idx").using("gin", mv.contentTsv),
 		...(variants.has("extraIndex") ? [index("search_index_id_idx").on(mv.id)] : []),
+		...(variants.has("trigrams")
+			? [index("search_index_source_table_trgm_idx").using("gin", mv.sourceTable.op("gin_trgm_ops"))]
+			: []),
 	],
 ).as(sql`
 	select 'customers' as source_table, id, to_tsvector('simple', content) as content_tsv from ${customerSearchData}
