@@ -2,6 +2,13 @@
 
 **An extra step closer to your whole schema in TypeScript, migrated by `drizzle-kit generate`.**
 
+<p>
+<a href="https://www.npmjs.com/package/@mmmike/extra-drizzle-kit"><picture><source media="(prefers-color-scheme: dark)" srcset="https://img.shields.io/npm/v/%40mmmike%2Fextra-drizzle-kit/rc?style=flat-square&colorA=151b23&colorB=7c5cff&label=npm"><img alt="npm" src="https://img.shields.io/npm/v/%40mmmike%2Fextra-drizzle-kit/rc?style=flat-square&colorA=f6f8fa&colorB=7c5cff&label=npm"></picture></a>
+<a href="https://github.com/MMMikeM/extra-drizzle-kit/actions/workflows/ci.yml"><picture><source media="(prefers-color-scheme: dark)" srcset="https://img.shields.io/github/actions/workflow/status/MMMikeM/extra-drizzle-kit/ci.yml?branch=main&label=CI&logo=githubactions&style=flat-square&colorA=151b23&logoColor=f0f6fc"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/MMMikeM/extra-drizzle-kit/ci.yml?branch=main&label=CI&logo=githubactions&style=flat-square&colorA=f6f8fa&logoColor=1f2328"></picture></a>
+<a href="https://github.com/drizzle-team/drizzle-orm/releases"><picture><source media="(prefers-color-scheme: dark)" srcset="https://img.shields.io/badge/drizzle--kit-1.0.0--rc.5-c5f74f?style=flat-square&colorA=151b23&logo=drizzle&logoColor=f0f6fc"><img alt="drizzle-kit 1.0.0-rc.5" src="https://img.shields.io/badge/drizzle--kit-1.0.0--rc.5-c5f74f?style=flat-square&colorA=f6f8fa&logo=drizzle&logoColor=1f2328"></picture></a>
+<a href="https://github.com/MMMikeM/extra-drizzle-kit/blob/main/LICENSE"><picture><source media="(prefers-color-scheme: dark)" srcset="https://img.shields.io/github/license/MMMikeM/extra-drizzle-kit?style=flat-square&colorA=151b23&colorB=7c5cff"><img alt="license" src="https://img.shields.io/github/license/MMMikeM/extra-drizzle-kit?style=flat-square&colorA=f6f8fa&colorB=7c5cff"></picture></a>
+</p>
+
 drizzle-kit leaves a few things out, which means writing SQL migrations by hand next to the generated ones.
 For Postgres, this package covers them:
 
@@ -63,18 +70,30 @@ the indexes, and returns drizzle's own view, so the rest of your code doesn't ch
 
 ```ts
 import { sql } from "drizzle-orm"
-import { integer, pgTable, pgView, text, uniqueIndex } from "drizzle-orm/pg-core"
+import {
+	integer,
+	pgTable,
+	pgView,
+	text,
+	uniqueIndex,
+} from "drizzle-orm/pg-core"
 import { pgMaterializedView } from "@mmmike/extra-drizzle-kit"
 
-export const users = pgTable("users", { id: integer("id").primaryKey(), name: text("name") })
+export const users = pgTable("users", {
+	id: integer("id").primaryKey(),
+	name: text("name"),
+})
 
-export const activeUsers = pgView("active_users", { id: integer("id"), name: text("name") }).as(
-	sql`select "id", "name" from ${users}`,
-)
+export const activeUsers = pgView("active_users", {
+	id: integer("id"),
+	name: text("name"),
+}).as(sql`select "id", "name" from ${users}`)
 
-export const userNames = pgMaterializedView("user_names", { id: integer("id"), name: text("name") }, (mv) => [
-	uniqueIndex("user_names_id_idx").on(mv.id),
-]).as(sql`select "id", "name" from ${activeUsers}`)
+export const userNames = pgMaterializedView(
+	"user_names",
+	{ id: integer("id"), name: text("name") },
+	(mv) => [uniqueIndex("user_names_id_idx").on(mv.id)],
+).as(sql`select "id", "name" from ${activeUsers}`)
 ```
 
 **2. Run `extra-drizzle-kit generate` wherever you ran `drizzle-kit generate`.** It passes every argument to
@@ -102,10 +121,14 @@ For a view with declared columns, the indexes are the third argument, as in the 
 the same columns a `pgTable`'s indexes get, so ordering and operator classes work:
 
 ```ts
-export const people = pgMaterializedView("people", { score: integer("score"), name: text("name") }, (t) => [
-	index("people_score_idx").on(t.score.desc().nullsLast()),
-	index("people_name_trgm_idx").using("gin", t.name.op("gin_trgm_ops")),
-]).as(sql`select ...`)
+export const people = pgMaterializedView(
+	"people",
+	{ score: integer("score"), name: text("name") },
+	(t) => [
+		index("people_score_idx").on(t.score.desc().nullsLast()),
+		index("people_name_trgm_idx").using("gin", t.name.op("gin_trgm_ops")),
+	],
+).as(sql`select ...`)
 ```
 
 For a view built with the query builder, the indexes are the second argument of `.as()`. That callback gets the
@@ -125,12 +148,15 @@ For a view in another Postgres schema, use `materializedViewIn`:
 import { materializedViewIn } from "@mmmike/extra-drizzle-kit"
 
 const reporting = pgSchema("reporting")
-export const totals = materializedViewIn(reporting)("totals", { day: date("day") }, (mv) => [uniqueIndex().on(mv.day)])
-	.as(sql`select ...`)
+export const totals = materializedViewIn(reporting)(
+	"totals",
+	{ day: date("day") },
+	(mv) => [uniqueIndex().on(mv.day)],
+).as(sql`select ...`)
 ```
 
 An index can be on the view's columns, or on a `sql` expression in a named index:
-``index("by_lower_name").on(sql`lower(name)`)``. A field selected as `` sql`...`.as("alias") `` isn't a column,
+``index("by_lower_name").on(sql`lower(name)`)``. A field selected as ``sql`...`.as("alias")`` isn't a column,
 and generate refuses an index on it.
 
 ## Declaring extensions
@@ -174,8 +200,9 @@ you.
   CONCURRENTLY` succeeds. It covers a changed view, column type changes, an enum losing a value, table renames
   answered both ways, index-only changes, extensions and an unchanged schema, which must match drizzle-kit byte
   for byte.
-- **Canaries watch drizzle-kit.** Two tests apply plain drizzle-kit's migrations and expect Postgres to refuse them, with `2BP01` for a changed view and `0A000` for a column type change. The day one fails, drizzle-kit handles
-  that case itself.
+- **Canaries watch drizzle-kit.** Two tests apply plain drizzle-kit's migrations and expect Postgres to refuse
+  them, with `2BP01` for a changed view and `0A000` for a column type change. The day one fails, drizzle-kit
+  handles that case itself.
 - **One release per drizzle-kit version.** The package's version is the drizzle-kit version it was tested
   against, pinned exactly, because drizzle-kit's output changes between releases.
 
@@ -189,7 +216,8 @@ the next generate knows the database already has them.
 
 The package reads each view's SQL, as drizzle-kit stored it in the migration snapshots, and looks for the names
 of other views and of tables. A view is recreated when a view it reads is recreated, or when a table it reads
-loses a column or changes a column's type. Renames of tables and columns don't count, because Postgres allows them under a view. There is nothing to declare. A removed or renamed view still has its old dependencies known when
+loses a column or changes a column's type. Renames of tables and columns don't count, because Postgres allows
+them under a view. There is nothing to declare. A removed or renamed view still has its old dependencies known when
 it has to be dropped.
 
 The scan errs towards extra matches, so a name that only looks like a view triggers one unnecessary recreation. It
@@ -207,13 +235,14 @@ runtime. Postgres then refuses the migration with `2BP01`, as it would without t
   `extra-drizzle-kit.json` files agree, or merge with `drizzle-kit generate` and run `baseline` afterwards.
 - **`drizzle.config.ts` is loaded with Node's own `import()`** to find the migrations folder, so its relative
   imports need file extensions. Your schema files are loaded by drizzle-kit, as before.
-- **`--explain` previews drizzle-kit's own plan.** It is passed to drizzle-kit unchanged, so the
-  preview lacks the reordered view statements and the index statements that `generate` then writes.
+- **`--explain` previews drizzle-kit's own plan.** It is passed to drizzle-kit unchanged, so the preview lacks
+  the reordered view statements and the index statements that `generate` then writes.
 - **Node 24 or later.**
 
 ## For coding agents
 
-The installed package has an `AGENTS.md` with the rules for working in a project that uses it. Its first rule is to generate migrations with `extra-drizzle-kit generate`, never `drizzle-kit generate`.
+The installed package has an `AGENTS.md` with the rules for working in a project that uses it. Its first rule is
+to generate migrations with `extra-drizzle-kit generate`, never `drizzle-kit generate`.
 
 ## License
 

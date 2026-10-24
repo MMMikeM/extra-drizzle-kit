@@ -35,9 +35,11 @@ from the schema.
 import { pgMaterializedView } from "@mmmike/extra-drizzle-kit"
 
 // Declared columns: the indexes are the third argument, as for pgTable.
-export const userNames = pgMaterializedView("user_names", { id: integer("id"), name: text("name") }, (mv) => [
-	uniqueIndex("user_names_id_idx").on(mv.id),
-]).as(sql`select "id", "name" from ${activeUsers}`)
+export const userNames = pgMaterializedView(
+	"user_names",
+	{ id: integer("id"), name: text("name") },
+	(mv) => [uniqueIndex("user_names_id_idx").on(mv.id)],
+).as(sql`select "id", "name" from ${activeUsers}`)
 
 // Query builder: the indexes are the second argument of `.as()`.
 export const names = pgMaterializedView("names").as(
@@ -50,4 +52,4 @@ With declared columns, the callback gets a table's index columns, so `.desc()`, 
 `.op("gin_trgm_ops")` work. In the query-builder form they don't; declare the view's columns when you need them.
 
 An index can be on the view's columns, or on a `sql` expression in a named index. A field selected as
-`` sql`...`.as("alias") `` isn't a column, and generate refuses an index on it.
+``sql`...`.as("alias")`` isn't a column, and generate refuses an index on it.

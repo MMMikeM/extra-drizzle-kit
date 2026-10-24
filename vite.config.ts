@@ -2,6 +2,19 @@ import { readFileSync } from "node:fs"
 import { defineConfig } from "vite-plus"
 
 export default defineConfig({
+	fmt: {
+		useTabs: true,
+		semi: false,
+		printWidth: 120,
+		ignorePatterns: ["dist", "test/.tmp", ".reference"],
+		overrides: [
+			{
+				// GitHub shows a README's code blocks at about 80 characters before they scroll.
+				files: ["**/*.md"],
+				options: { printWidth: 80 },
+			},
+		],
+	},
 	test: {
 		environment: "node",
 		include: ["test/**/*.test.ts"],
