@@ -209,7 +209,7 @@ runtime. Postgres then refuses the migration with `2BP01`, as it would without t
   imports need file extensions. Your schema files are loaded by drizzle-kit, as before.
 - **`--explain` previews drizzle-kit's own plan.** It is passed to drizzle-kit unchanged, so the
   preview lacks the reordered view statements and the index statements that `generate` then writes.
-- **Node 23.6 or later.**
+- **Node 24 or later.**
 
 ## For coding agents
 
