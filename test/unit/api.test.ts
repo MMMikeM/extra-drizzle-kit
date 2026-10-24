@@ -60,13 +60,25 @@ describe("pgMaterializedView", () => {
 		expect(await indexEntities(declarations())).toMatchObject([{ schema: "app", table: "mv", name: "mv_id_index" }])
 	})
 
-	it("refuses an index on a sql alias, which has no column name", async () => {
-		pgMaterializedView("aliased").as(
-			(qb) => qb.select({ upper: sql<string>`upper(${users.name})`.as("upper") }).from(users),
-			// @ts-expect-error -- drizzle's index().on() types reject a sql alias too
-			(view) => [index().on(view.upper)],
+	it("indexes a query-builder view's aliased fields by their alias, with a table's index options", async () => {
+		pgMaterializedView("search_index").as(
+			(qb) =>
+				qb
+					.select({
+						sourceTable: sql<string>`'users'`.as("source_table"),
+						id: sql<number>`${users.id}`.as("id"),
+						upperName: sql<string>`upper(${users.name})`.as("upper_name"),
+					})
+					.from(users),
+			(mv) => [
+				uniqueIndex("search_index_source_table_id_idx").on(mv.sourceTable, mv.id),
+				index("search_index_upper_name_idx").on(mv.upperName.desc()),
+			],
 		)
-		await expect(indexEntities(declarations())).rejects.toThrow("isn't a column of the view")
+		expect(await indexEntities(declarations())).toMatchObject([
+			{ name: "search_index_source_table_id_idx", isUnique: true, columns: [{ value: "source_table" }, { value: "id" }] },
+			{ name: "search_index_upper_name_idx", columns: [{ value: "upper_name", asc: false }] },
+		])
 	})
 })
 

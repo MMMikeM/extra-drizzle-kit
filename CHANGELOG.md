@@ -2,9 +2,20 @@
 
 All notable changes to `@mmmike/extra-drizzle-kit` are documented here.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Each version is the drizzle-kit
-version the release targets, so a release can change behavior without a major version bump; the entries say
-when it does.
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
+[Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0. Each release pins the drizzle-kit and
+drizzle-orm version it was tested against, exactly, as a peer dependency.
+
+## [1.0.0] - 2026-10-24
+
+### Changed
+
+- Version numbers are the package's own, so a fix can ship without a new drizzle-kit release. 1.0.0 still needs
+  drizzle-kit and drizzle-orm `1.0.0-rc.5` exactly, the first drizzle-kit release with the API the package is built
+  on.
+- The index callback of a view built with the query builder gets one column per selected field, as a table's
+  indexes get them. A field selected as ``sql`...`.as("alias")`` is indexed by its alias, and `.desc()`,
+  `.nullsFirst()` and `.op()` work there too. The callback no longer gets the view itself.
 
 ## [1.0.0-rc.5] - 2026-10-24
 

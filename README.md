@@ -31,6 +31,12 @@ pnpm add -D @mmmike/extra-drizzle-kit drizzle-kit@1.0.0-rc.5
 pnpm add drizzle-orm@1.0.0-rc.5
 ```
 
+Each release works with exactly one drizzle-kit version, pinned as a peer dependency together with drizzle-orm:
+
+| extra-drizzle-kit | drizzle-kit and drizzle-orm |
+| ----------------- | --------------------------- |
+| 1.0.0             | 1.0.0-rc.5                  |
+
 > [!WARNING]
 > **`drizzle-kit push` is not supported.** Use `extra-drizzle-kit generate` and `drizzle-kit migrate` for any
 > database with materialized views, view chains or extensions. `push` never reads migration files, so with it:
@@ -131,14 +137,20 @@ export const people = pgMaterializedView(
 ).as(sql`select ...`)
 ```
 
-For a view built with the query builder, the indexes are the second argument of `.as()`. That callback gets the
-view, whose fields are plain columns, so `.desc()`, `.nullsFirst()` and `.op()` aren't available there. Declare
-the view's columns when you need them.
+For a view built with the query builder, the indexes are the second argument of `.as()`. That callback gets one
+column per selected field, named the way Postgres names the view's column, so a field selected as
+``sql`...`.as("alias")`` is indexed by its alias:
 
 ```ts
 export const userNames = pgMaterializedView("user_names").as(
-	(qb) => qb.select({ id: users.id, name: users.name }).from(users),
-	(mv) => [uniqueIndex().on(mv.id)],
+	(qb) =>
+		qb
+			.select({
+				id: users.id,
+				lowerName: sql<string>`lower(${users.name})`.as("lower_name"),
+			})
+			.from(users),
+	(mv) => [uniqueIndex().on(mv.id), index().on(mv.lowerName.desc())],
 )
 ```
 
@@ -155,9 +167,8 @@ export const totals = materializedViewIn(reporting)(
 ).as(sql`select ...`)
 ```
 
-An index can be on the view's columns, or on a `sql` expression in a named index:
-``index("by_lower_name").on(sql`lower(name)`)``. A field selected as ``sql`...`.as("alias")`` isn't a column,
-and generate refuses an index on it.
+An index can also be on a `sql` expression, given a name:
+``index("by_lower_name").on(sql`lower(name)`)``.
 
 ## Declaring extensions
 
@@ -203,8 +214,9 @@ you.
 - **Canaries watch drizzle-kit.** Two tests apply plain drizzle-kit's migrations and expect Postgres to refuse
   them, with `2BP01` for a changed view and `0A000` for a column type change. The day one fails, drizzle-kit
   handles that case itself.
-- **One release per drizzle-kit version.** The package's version is the drizzle-kit version it was tested
-  against, pinned exactly, because drizzle-kit's output changes between releases.
+- **One drizzle-kit version per release.** Each release pins drizzle-kit and drizzle-orm exactly and is tested
+  against that version, because drizzle-kit's output changes between releases. Nothing older than 1.0.0-rc.5 can
+  work: rc.4 and earlier don't export `reconstruct()`, which the package reads the migrations folder with.
 
 ## Coming from a workaround?
 

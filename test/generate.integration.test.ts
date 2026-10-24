@@ -264,4 +264,14 @@ describe("extra-drizzle-kit generate", () => {
 			})
 		})
 	})
+
+	it("indexes a query-builder materialized view's aliased fields under their alias", async () => {
+		const statements = wrappedOnCopy("newColumn,changedView,aliasedView")
+		expect(statements).toContain('CREATE UNIQUE INDEX "product_labels_id_idx" ON "product_labels" ("id");')
+		await applyRolledBack(statements, async (client) => {
+			const { rows } = await client.query("SELECT indexname FROM pg_indexes WHERE tablename = 'product_labels' ORDER BY 1")
+			expect(rows.map((row: { indexname: string }) => row.indexname)).toEqual(["product_labels_id_idx", "product_labels_label_idx"])
+			await client.query("REFRESH MATERIALIZED VIEW CONCURRENTLY product_labels")
+		})
+	})
 })

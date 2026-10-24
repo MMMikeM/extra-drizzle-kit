@@ -1,6 +1,15 @@
-import { is, SQL } from "drizzle-orm"
+import { Column, is, SQL } from "drizzle-orm"
 import { generateDrizzleJson } from "drizzle-kit/api-postgres"
-import { getMaterializedViewConfig, getTableConfig, IndexedColumn, pgSchema, pgTable } from "drizzle-orm/pg-core"
+import {
+	type AnyPgColumnBuilder,
+	getMaterializedViewConfig,
+	getTableConfig,
+	IndexedColumn,
+	pgSchema,
+	pgTable,
+	type PgMaterializedView,
+	text,
+} from "drizzle-orm/pg-core"
 import type { Declaration } from "./registry.ts"
 import type { Entity } from "./state.ts"
 
@@ -15,23 +24,32 @@ const assertConvertible = (view: string, configs: IndexConfig[]) => {
 				if (!name) throw new Error(`An expression index on ${view} needs a name: index("name").on(sql\`...\`).`)
 			} else if (!is(column, IndexedColumn) || typeof column.name !== "string") {
 				throw new Error(
-					`An index on ${view} uses a field that isn't a column of the view, such as a sql\`...\`.as() alias. ` +
-						"Declare the view's columns, or index the expression with a named index.",
+					`An index on ${view} uses a field that isn't one of the view's columns. Index a field the view ` +
+						"selects, or index the expression with a named index.",
 				)
 			}
 		}
 	}
 }
 
-// Kit's serializer reads indexes only from tables. A table named after the view, never exported, carries the
-// index builders, so kit's own serializer produces the index entities. With declared columns the table has the
-// view's columns, which gives the callback the same columns a table's indexes get.
+// A query-builder view selects columns and `sql\`...\`.as()` aliases, and Postgres names each output column after
+// the column or the alias. A text column of that name stands in for each field; an index only reads the name.
+const outputColumns = (view: PgMaterializedView): Record<string, AnyPgColumnBuilder> =>
+	Object.fromEntries(
+		Object.entries(getMaterializedViewConfig(view).selectedFields).flatMap(([key, field]) => {
+			if (is(field, Column)) return [[key, text(field.name)]]
+			if (is(field, SQL.Aliased)) return [[key, text(field.fieldAlias)]]
+			return []
+		}),
+	)
+
+// Kit's serializer reads indexes only from tables. A table named after the view, with the view's columns and never
+// exported, carries the index builders, so kit's own serializer produces the index entities. The callback gets the
+// columns a table's indexes get, which is why `.desc()`, `.nullsFirst()` and `.op()` work on a view's fields.
 const indexesOf = async ({ view, indexes, columns }: Declaration): Promise<Entity[]> => {
 	const { name, schema } = getMaterializedViewConfig(view)
 	const table = (schema && schema !== "public" ? pgSchema(schema).table : pgTable) as typeof pgTable
-	const carrier = columns
-		? table(name, columns, (extraColumns) => indexes(extraColumns as never))
-		: table(name, {}, () => indexes(view as never))
+	const carrier = table(name, columns ?? outputColumns(view), (extraColumns) => indexes(extraColumns as never))
 	assertConvertible(name, getTableConfig(carrier).indexes.map((index) => index.config))
 	const { ddl } = await generateDrizzleJson({ carrier })
 	return ddl.filter((entity) => entity.entityType === "indexes")

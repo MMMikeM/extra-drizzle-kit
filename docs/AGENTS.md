@@ -48,8 +48,8 @@ export const names = pgMaterializedView("names").as(
 )
 ```
 
-With declared columns, the callback gets a table's index columns, so `.desc()`, `.nullsFirst()` and
-`.op("gin_trgm_ops")` work. In the query-builder form they don't; declare the view's columns when you need them.
+In both forms the callback gets one column per field of the view, as a table's indexes get them, so `.desc()`,
+`.nullsFirst()` and `.op("gin_trgm_ops")` work. A field selected as ``sql`...`.as("alias")`` is indexed by its
+alias: write `uniqueIndex().on(mv.id)`, never `` sql`${sql.identifier("id")}` ``.
 
-An index can be on the view's columns, or on a `sql` expression in a named index. A field selected as
-``sql`...`.as("alias")`` isn't a column, and generate refuses an index on it.
+An index can also be on a `sql` expression, given a name.

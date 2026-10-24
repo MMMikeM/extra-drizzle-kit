@@ -80,6 +80,18 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           DIST_TAG: ${{ steps.meta.outputs.dist_tag }}
 
+      # Temporary, remove after the 1.0.0 release. npm left a "0.0.0-stage" placeholder version from the first
+      # publish of the package. Removing it takes a token, not trusted publishing, and npm allows an unpublish only
+      # within 72 hours, so until 2026-10-27 19:09 UTC.
+      - name: Remove npm's staging placeholder
+        working-directory: ${{ runner.temp }}/package
+        run: |
+          npm unpublish @mmmike/extra-drizzle-kit@0.0.0-stage \
+            || npm deprecate @mmmike/extra-drizzle-kit@0.0.0-stage "npm staging placeholder, not a release" \
+            || echo "::warning::Couldn't unpublish or deprecate 0.0.0-stage; do it by hand"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
       - name: Create GitHub Release
         run: |
           if [ "$PRERELEASE" = "true" ]; then PRERELEASE_FLAG=--prerelease; fi

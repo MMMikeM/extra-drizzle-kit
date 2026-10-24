@@ -2,6 +2,7 @@ import type { ColumnsSelection, SQL } from "drizzle-orm"
 import {
 	pgMaterializedView as drizzlePgMaterializedView,
 	type AnyPgColumnBuilder,
+	type ExtraConfigColumn,
 	type IndexBuilder,
 	type PgBuildColumns,
 	type PgBuildExtraConfigColumns,
@@ -16,8 +17,9 @@ import type { AddAliasToSelection } from "drizzle-orm/query-builders/select.type
 import { declare, type Declaration, declareExtension, type Extension } from "./registry.ts"
 
 /**
- * The indexes of a materialized view, built with drizzle's `index()` and `uniqueIndex()` on its columns. A view
- * with declared columns gets the columns a table's indexes get, so `.desc()`, `.nullsFirst()` and `.op()` work.
+ * The indexes of a materialized view, built with drizzle's `index()` and `uniqueIndex()` on its columns. The callback
+ * gets one column per field of the view, aliased fields included, as a table's indexes get them, so `.desc()`,
+ * `.nullsFirst()` and `.op()` work.
  */
 export type MaterializedViewIndexes<TColumns> = (columns: TColumns) => IndexBuilder[]
 
@@ -54,7 +56,7 @@ export interface QueryMaterializedViewBuilder<TName extends string, TSchema exte
 	extends MaterializedViewOptions {
 	as<TSelectedFields extends ColumnsSelection>(
 		qb: TypedQueryBuilder<TSelectedFields> | ((qb: QueryBuilder) => TypedQueryBuilder<TSelectedFields>),
-		indexes?: MaterializedViewIndexes<QueryView<TName, TSchema, TSelectedFields>>,
+		indexes?: MaterializedViewIndexes<{ [K in keyof TSelectedFields]: ExtraConfigColumn }>,
 	): QueryView<TName, TSchema, TSelectedFields>
 }
 
@@ -125,7 +127,8 @@ const withIndexes = (
  * Declares a materialized view, like drizzle's `pgMaterializedView`, and optionally its indexes.
  *
  * Pass the indexes as the third argument for a view with declared columns, as for `pgTable`, or as the second
- * argument of `.as()` for a view built with the query builder, which gets the view. `extra-drizzle-kit generate` writes them into the
+ * argument of `.as()` for a view built with the query builder. Either way the callback gets the view's columns,
+ * including fields selected as `sql\`...\`.as("alias")`. `extra-drizzle-kit generate` writes them into the
  * migration after the view, and recreates them whenever the view is recreated.
  *
  * @example

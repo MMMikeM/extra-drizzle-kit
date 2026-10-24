@@ -40,3 +40,16 @@ export const searchIndex = pgMaterializedView(
 if (variants.has("strayIndex")) {
 	pgMaterializedView("stray", { id: integer("id") }, (mv) => [uniqueIndex("stray_id_idx").on(mv.id)]).as(sql`select 1 as id`)
 }
+
+export const productLabels = variants.has("aliasedView")
+	? pgMaterializedView("product_labels").as(
+			(qb) =>
+				qb
+					.select({
+						id: sql<number>`${products.id}`.as("id"),
+						label: sql<string>`lower(${products.label})`.as("label"),
+					})
+					.from(products),
+			(mv) => [uniqueIndex("product_labels_id_idx").on(mv.id), index("product_labels_label_idx").on(mv.label.desc())],
+		)
+	: undefined
