@@ -4,6 +4,7 @@ import {
 	type AnyPgColumnBuilder,
 	type IndexBuilder,
 	type PgBuildColumns,
+	type PgBuildExtraConfigColumns,
 	type PgMaterializedView,
 	type PgMaterializedViewWithConfig,
 	type PgMaterializedViewWithSelection,
@@ -14,8 +15,11 @@ import type { TypedQueryBuilder } from "drizzle-orm/query-builders/query-builder
 import type { AddAliasToSelection } from "drizzle-orm/query-builders/select.types"
 import { declare, type Declaration } from "./registry.ts"
 
-/** The indexes of a materialized view, built with drizzle's `index()` and `uniqueIndex()` on its columns. */
-export type MaterializedViewIndexes<TView> = (view: TView) => IndexBuilder[]
+/**
+ * The indexes of a materialized view, built with drizzle's `index()` and `uniqueIndex()` on its columns. A view
+ * with declared columns gets the columns a table's indexes get, so `.desc()`, `.nullsFirst()` and `.op()` work.
+ */
+export type MaterializedViewIndexes<TColumns> = (columns: TColumns) => IndexBuilder[]
 
 type QueryView<TName extends string, TSchema extends string | undefined, TSelectedFields extends ColumnsSelection> =
 	PgMaterializedViewWithSelection<{
@@ -77,7 +81,7 @@ export interface PgMaterializedViewWithIndexesFn<TSchema extends string | undefi
 	<TName extends string, TColumns extends Record<string, AnyPgColumnBuilder>>(
 		name: TName,
 		columns: TColumns,
-		indexes?: MaterializedViewIndexes<ColumnsView<TName, TColumns, TSchema>>,
+		indexes?: MaterializedViewIndexes<PgBuildExtraConfigColumns<TColumns>>,
 	): ColumnsMaterializedViewBuilder<TName, TColumns, TSchema>
 }
 
@@ -85,7 +89,11 @@ type Builder = { as: (query: unknown) => PgMaterializedView }
 
 // Every option method returns the builder itself, so the proxy hands itself back in its place: otherwise a
 // chain such as `.with({...}).as(...)` would reach drizzle's own `as` and lose the indexes.
-const recordingIndexes = <T extends Builder>(builder: T, columnsIndexes?: Declaration["indexes"]): T => {
+const recordingIndexes = <T extends Builder>(
+	builder: T,
+	columns?: Record<string, AnyPgColumnBuilder>,
+	columnsIndexes?: Declaration["indexes"],
+): T => {
 	const proxy: T = new Proxy(builder, {
 		get(target, prop) {
 			const value: unknown = Reflect.get(target, prop)
@@ -93,8 +101,8 @@ const recordingIndexes = <T extends Builder>(builder: T, columnsIndexes?: Declar
 			if (prop === "as") {
 				return (query: unknown, queryIndexes?: Declaration["indexes"]) => {
 					const view = target.as(query)
-					const indexes = columnsIndexes ?? queryIndexes
-					if (indexes) declare(view, indexes)
+					if (columnsIndexes && columns) declare({ view, indexes: columnsIndexes, columns })
+					else if (queryIndexes) declare({ view, indexes: queryIndexes })
 					return view
 				}
 			}
@@ -111,13 +119,13 @@ const withIndexes = (
 	create: (name: string, columns?: Record<string, AnyPgColumnBuilder>) => unknown,
 ): PgMaterializedViewWithIndexesFn<never> =>
 	((name: string, columns?: Record<string, AnyPgColumnBuilder>, indexes?: Declaration["indexes"]) =>
-		recordingIndexes(create(name, columns) as Builder, indexes)) as PgMaterializedViewWithIndexesFn<never>
+		recordingIndexes(create(name, columns) as Builder, columns, indexes)) as PgMaterializedViewWithIndexesFn<never>
 
 /**
  * Declares a materialized view, like drizzle's `pgMaterializedView`, and optionally its indexes.
  *
- * Pass the indexes as the third argument for a view with declared columns, or as the second argument of
- * `.as()` for a view built with the query builder. `drizzle-matview-kit generate` writes them into the
+ * Pass the indexes as the third argument for a view with declared columns, as for `pgTable`, or as the second
+ * argument of `.as()` for a view built with the query builder, which gets the view. `drizzle-kit-matview generate` writes them into the
  * migration after the view, and recreates them whenever the view is recreated.
  *
  * @example

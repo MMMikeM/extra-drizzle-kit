@@ -1,10 +1,10 @@
-import { integer, pgTable, text } from "drizzle-orm/pg-core"
+import { integer, pgTable, text, varchar } from "drizzle-orm/pg-core"
 
 const variants = new Set((process.env.SCHEMA_VARIANT ?? "").split(","))
 
 export const customers = pgTable(variants.has("renamedTable") ? "clients" : "customers", {
 	id: integer("id").primaryKey(),
-	name: text("name").notNull(),
+	name: variants.has("retypedName") ? varchar("name", { length: 200 }).notNull() : text("name").notNull(),
 	...(variants.has("newColumn") ? { title: text("title") } : {}),
 })
 

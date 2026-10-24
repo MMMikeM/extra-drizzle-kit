@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs"
 import { defineConfig } from "vite-plus"
 
 export default defineConfig({
@@ -15,5 +16,13 @@ export default defineConfig({
 		clean: true,
 		unbundle: true,
 		failOnWarn: true,
+		plugins: [
+			{
+				name: "agents-md",
+				generateBundle() {
+					this.emitFile({ type: "asset", fileName: "AGENTS.md", source: readFileSync("docs/AGENTS.md", "utf8") })
+				},
+			},
+		],
 	},
 })

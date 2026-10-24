@@ -1,8 +1,10 @@
 import { generateMigration, type Hint } from "drizzle-kit/api-postgres"
+import { tablesWithBrokenColumns } from "./columns.ts"
 import {
 	dependencies,
 	type Graph,
 	hasEdgeWithin,
+	references,
 	topologicalOrder,
 	type View,
 	type ViewKey,
@@ -49,16 +51,28 @@ export type Plan = {
 	createIndexes: IndexRow[]
 	prevGraph: Graph
 	curGraph: Graph
+	/** Whether a view is recreated around a column change that kit would run under it. */
+	underBrokenTables: boolean
 }
 
-export const plan = ({ prev, cur, viewRenames, prevIndexes, curIndexes }: Input): Plan => {
+/** Views that read a table losing a column or changing a column's type, which Postgres refuses under a view. */
+const readingBrokenTables = (prev: State, cur: State, hints: Hint[], prevViews: Map<ViewKey, View>) => {
+	const broken = tablesWithBrokenColumns(prev, cur, hints)
+	if (broken.size === 0) return []
+	const tables = prev.ddl.filter((entity) => entity.entityType === "tables") as (Entity & { schema: string; name: string })[]
+	const reads = references(prevViews, tables)
+	return [...reads].flatMap(([view, read]) => ([...read].some((table) => broken.has(table)) ? [view] : []))
+}
+
+export const plan = ({ prev, cur, hints, viewRenames, prevIndexes, curIndexes }: Input): Plan => {
 	const prevViews = viewsOf(prev.ddl)
 	const curViews = viewsOf(cur.ddl)
 	const prevGraph = dependencies(prevViews)
 	const curGraph = dependencies(curViews)
 	const toPrev = new Map([...viewRenames].map(([from, to]) => [to, from]))
 
-	const recreated = withDependents(prevGraph, droppedOrRecreated(prevViews, curViews, viewRenames))
+	const underBroken = readingBrokenTables(prev, cur, hints, prevViews)
+	const recreated = withDependents(prevGraph, [...droppedOrRecreated(prevViews, curViews, viewRenames), ...underBroken])
 	const creates = new Set(
 		[...curViews.keys()].filter((key) => {
 			const before = toPrev.get(key) ?? key
@@ -92,11 +106,16 @@ export const plan = ({ prev, cur, viewRenames, prevIndexes, curIndexes }: Input)
 		createIndexes,
 		prevGraph,
 		curGraph,
+		underBrokenTables: underBroken.length > 0,
 	}
 }
 
-/** Kit's own migration is right when no view depends on another that it drops, and no index needs SQL. */
+/**
+ * Kit's own migration is right when no view depends on another that it drops, no column change runs under a
+ * view, and no index needs SQL.
+ */
 export const needsRewrite = (p: Plan): boolean =>
+	p.underBrokenTables ||
 	hasEdgeWithin(p.prevGraph, new Set(p.drops)) ||
 	hasEdgeWithin(p.curGraph, new Set(p.creates)) ||
 	p.dropIndexes.length > 0 ||

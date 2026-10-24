@@ -105,7 +105,7 @@ const indexesOnSearchIndex = async () =>
 	)
 
 // One migrations folder and one database, so each test builds on the migrations the tests before it wrote.
-describe("drizzle-matview-kit generate", () => {
+describe("drizzle-kit-matview generate", () => {
 	it("creates the matview's indexes after the matview in the first migration", async () => {
 		wrapped("")
 		expect(folders()).toHaveLength(1)
@@ -201,6 +201,26 @@ describe("drizzle-matview-kit generate", () => {
 			expect(statements.some((s) => s.startsWith('CREATE TABLE "clients"'))).toBe(true)
 			expect(statements).toContain('DROP TABLE "customers";')
 			await appliesWithIndexes(statements)
+		})
+	})
+
+	describe("a column type change under a view that search_index reads", () => {
+		const variant = "newColumn,changedView,retypedName"
+
+		// drizzle-orm#6194: plain drizzle-kit alters the column with the view still on it.
+		it("is needed: drizzle-kit alone alters a column that a view reads", async () => {
+			expect(await errorCode(applyRolledBack(statementsOf(plainKit(variant))))).toBe("0A000")
+		})
+
+		it("recreates the views around the column change", async () => {
+			const statements = wrappedOnCopy(variant)
+			const dropView = statements.indexOf('DROP VIEW "customer_search_data_view";')
+			const alter = statements.findIndex((s) => s.startsWith('ALTER TABLE "customers" ALTER COLUMN "name" SET DATA TYPE'))
+			expect(dropView).toBeGreaterThanOrEqual(0)
+			expect(dropView).toBeLessThan(alter)
+			await applyRolledBack(statements, async (client) => {
+				await client.query("REFRESH MATERIALIZED VIEW CONCURRENTLY search_index")
+			})
 		})
 	})
 })

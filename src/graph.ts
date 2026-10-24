@@ -84,12 +84,21 @@ export const nameChains = (sql: string): string[][] => {
 }
 
 /**
- * The views each view reads, found in its definition. It over-matches on purpose: a name that only looks like a
- * view costs an extra recreation, and a missed one brings back the drop that Postgres refuses with 2BP01.
+ * The relations each view's definition names, out of `targets`: views, or tables. It over-matches on purpose: a
+ * name that only looks like a relation costs an extra recreation, and a missed one brings back the drop or the
+ * alter that Postgres refuses because the view depends on it.
  */
-export const dependencies = (views: Map<ViewKey, View>): Graph => {
+export const references = (
+	views: Map<ViewKey, View>,
+	targets: Iterable<{ schema: string; name: string }>,
+): Graph => {
+	const keys = new Set<ViewKey>()
 	const byName = new Map<string, ViewKey[]>()
-	for (const [key, view] of views) byName.set(view.name, [...(byName.get(view.name) ?? []), key])
+	for (const target of targets) {
+		const key = viewKey(target)
+		keys.add(key)
+		byName.set(target.name, [...(byName.get(target.name) ?? []), key])
+	}
 
 	const graph: Graph = new Map()
 	for (const [key, view] of views) {
@@ -98,7 +107,7 @@ export const dependencies = (views: Map<ViewKey, View>): Graph => {
 			for (const part of chain) for (const match of byName.get(part) ?? []) found.add(match)
 			for (let i = 0; i + 1 < chain.length; i++) {
 				const qualified = viewKey({ schema: chain[i], name: chain[i + 1] })
-				if (views.has(qualified)) found.add(qualified)
+				if (keys.has(qualified)) found.add(qualified)
 			}
 		}
 		found.delete(key)
@@ -106,6 +115,9 @@ export const dependencies = (views: Map<ViewKey, View>): Graph => {
 	}
 	return graph
 }
+
+/** The views each view reads. */
+export const dependencies = (views: Map<ViewKey, View>): Graph => references(views, views.values())
 
 /** `seeds` and every view that reads one of them, directly or through other views. */
 export const withDependents = (graph: Graph, seeds: Iterable<ViewKey>): Set<ViewKey> => {

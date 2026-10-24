@@ -1,7 +1,17 @@
 {
-	"name": "drizzle-matview-kit",
+	"name": "@mmmike/drizzle-kit-matview",
 	"version": "1.0.0-rc.5",
 	"description": "Indexes on materialized views, and migrations that recreate the views that depend on a changed one, for drizzle-kit generate on Postgres.",
+	"keywords": [
+		"drizzle",
+		"drizzle-kit",
+		"drizzle-orm",
+		"postgres",
+		"postgresql",
+		"materialized-view",
+		"migrations",
+		"index"
+	],
 	"license": "MIT",
 	"author": "Mike Murray",
 	"type": "module",
@@ -10,7 +20,7 @@
 	],
 	"sideEffects": false,
 	"bin": {
-		"drizzle-matview-kit": "./dist/cli.mjs"
+		"drizzle-kit-matview": "./dist/cli.mjs"
 	},
 	"exports": {
 		".": {

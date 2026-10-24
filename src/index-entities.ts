@@ -1,18 +1,15 @@
 import { is, SQL } from "drizzle-orm"
 import { generateDrizzleJson } from "drizzle-kit/api-postgres"
-import { getMaterializedViewConfig, IndexedColumn, type IndexBuilder, pgSchema, pgTable } from "drizzle-orm/pg-core"
+import { getMaterializedViewConfig, getTableConfig, IndexedColumn, pgSchema, pgTable } from "drizzle-orm/pg-core"
 import type { Declaration } from "./registry.ts"
 import type { Entity } from "./state.ts"
 
-type BuilderConfig = { name?: string; columns: unknown[] }
-
-const configOf = (builder: IndexBuilder) => (builder as unknown as { config: BuilderConfig }).config
+type IndexConfig = { name?: string; columns: unknown[] }
 
 // generateDrizzleJson calls process.exit(1) on these, so they are caught here first with a message that names
 // the view.
-const assertConvertible = (view: string, builders: IndexBuilder[]) => {
-	for (const builder of builders) {
-		const { name, columns } = configOf(builder)
+const assertConvertible = (view: string, configs: IndexConfig[]) => {
+	for (const { name, columns } of configs) {
 		for (const column of columns) {
 			if (is(column, SQL)) {
 				if (!name) throw new Error(`An expression index on ${view} needs a name: index("name").on(sql\`...\`).`)
@@ -26,15 +23,16 @@ const assertConvertible = (view: string, builders: IndexBuilder[]) => {
 	}
 }
 
-// Kit's serializer reads indexes only from tables. A table that only carries the view's index builders, and is
-// never exported, makes kit's own serializer produce the index entities.
-const indexesOf = async ({ view, indexes }: Declaration): Promise<Entity[]> => {
+// Kit's serializer reads indexes only from tables. A table named after the view, never exported, carries the
+// index builders, so kit's own serializer produces the index entities. With declared columns the table has the
+// view's columns, which gives the callback the same columns a table's indexes get.
+const indexesOf = async ({ view, indexes, columns }: Declaration): Promise<Entity[]> => {
 	const { name, schema } = getMaterializedViewConfig(view)
-	const builders = indexes(view as never)
-	assertConvertible(name, builders)
-	const extraConfig = () => builders
-	const carrier =
-		schema && schema !== "public" ? pgSchema(schema).table(name, {}, extraConfig) : pgTable(name, {}, extraConfig)
+	const table = (schema && schema !== "public" ? pgSchema(schema).table : pgTable) as typeof pgTable
+	const carrier = columns
+		? table(name, columns, (extraColumns) => indexes(extraColumns as never))
+		: table(name, {}, () => indexes(view as never))
+	assertConvertible(name, getTableConfig(carrier).indexes.map((index) => index.config))
 	const { ddl } = await generateDrizzleJson({ carrier })
 	return ddl.filter((entity) => entity.entityType === "indexes")
 }

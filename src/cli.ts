@@ -14,7 +14,7 @@ import { type Entity, folderOf, leafIds, migrationFolders, readSnapshots, starti
 
 const breakpoint = "--> statement-breakpoint\n"
 
-const log = (message: string) => process.stderr.write(`[drizzle-matview-kit] ${message}\n`)
+const log = (message: string) => process.stderr.write(`[drizzle-kit-matview] ${message}\n`)
 
 // bin.cjs isn't in kit's exports map, but it sits next to the `./cli` entry, which is.
 const kitBin = () => join(dirname(createRequire(import.meta.url).resolve("drizzle-kit/cli")), "bin.cjs")
@@ -144,8 +144,8 @@ const baseline = async (args: string[]): Promise<number> => {
 }
 
 const usage = `Usage:
-  drizzle-matview-kit generate [drizzle-kit generate options]
-  drizzle-matview-kit baseline [--config <path>]`
+  drizzle-kit-matview generate [drizzle-kit generate options]
+  drizzle-kit-matview baseline [--config <path>]`
 
 const [command, ...args] = process.argv.slice(2)
 try {

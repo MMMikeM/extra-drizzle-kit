@@ -47,7 +47,7 @@ export const startingLedger = (out: string, files: Files, prevIds: string[]): En
 	if (others.some((other) => canonical(other) !== canonical(first ?? []))) {
 		throw new Error(
 			"The branches this migration merges declare different indexes on materialized views. Make their " +
-				`${ledgerFile} files agree, or merge with drizzle-kit and then run drizzle-matview-kit baseline.`,
+				`${ledgerFile} files agree, or merge with drizzle-kit and then run drizzle-kit-matview baseline.`,
 		)
 	}
 	return first ?? []

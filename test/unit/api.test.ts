@@ -21,6 +21,18 @@ describe("pgMaterializedView", () => {
 		expect(entity).toMatchObject({ table: "mv", name: "mv_id_idx", isUnique: true, columns: [{ value: "id" }] })
 	})
 
+	it("gives declared columns a table's index options: order, nulls and operator class", async () => {
+		pgMaterializedView("ranked", { score: integer("score"), name: text("name") }, (t) => [
+			index("ranked_score_idx").on(t.score.desc().nullsLast()),
+			index("ranked_name_trgm_idx").using("gin", t.name.op("gin_trgm_ops")),
+		]).as(sql`select 1 as score, 'a' as name`)
+		const entities = await indexEntities(declarations())
+		expect(entities).toMatchObject([
+			{ name: "ranked_score_idx", columns: [{ value: "score", asc: false, nullsFirst: false }] },
+			{ name: "ranked_name_trgm_idx", method: "gin", columns: [{ value: "name", opclass: { name: "gin_trgm_ops" } }] },
+		])
+	})
+
 	it("records the indexes of a query-builder view, given to as()", async () => {
 		const mv = pgMaterializedView("names").as((qb) => qb.select({ id: users.id }).from(users), (view) => [
 			index().on(view.id),
