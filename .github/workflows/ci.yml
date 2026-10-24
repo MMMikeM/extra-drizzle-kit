@@ -1,0 +1,39 @@
+name: ci
+
+# Types, unit tests, and the integration suite, which applies real migrations to a testcontainers Postgres.
+# GitHub's Ubuntu runners have docker. release.yml calls this and publishes only if it passes.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        # 24 is the oldest LTS with unflagged type stripping, which the test suite and the fixture rely on.
+        node: ["24", "26"]
+    steps:
+      # Actions pinned to SHAs, not tags: a tag can be moved to point at malicious code.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Unpinned on purpose: pnpm/action-setup reads the version from package.json's "packageManager" field.
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+
+      - run: pnpm ci
+      - run: pnpm run check
+      - run: pnpm run build

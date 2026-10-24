@@ -28,25 +28,32 @@
 			"default": "./dist/index.mjs"
 		}
 	},
+	"publishConfig": {
+		"access": "public"
+	},
 	"scripts": {
 		"build": "vp pack",
 		"lint:types": "tsc -p tsconfig.json && tsc -p tsconfig.check.json",
 		"test": "vp test run",
-		"test:unit": "vp test run test/unit"
+		"test:unit": "vp test run test/unit",
+		"check": "pnpm run lint:types && pnpm run test",
+		"prepublishOnly": "pnpm run check && pnpm run build"
 	},
 	"peerDependencies": {
 		"drizzle-kit": "1.0.0-rc.5",
 		"drizzle-orm": "1.0.0-rc.5"
 	},
 	"devDependencies": {
+		"@arethetypeswrong/core": "0.18.5",
 		"@testcontainers/postgresql": "^12.2.1",
 		"@types/node": "^26.6.5",
 		"@types/pg": "^8.23.1",
-		"pg": "^8.23.1",
-		"typescript": "^7.0.2",
-		"vite-plus": "1.4.0",
 		"drizzle-kit": "1.0.0-rc.5",
-		"drizzle-orm": "1.0.0-rc.5"
+		"drizzle-orm": "1.0.0-rc.5",
+		"pg": "^8.23.1",
+		"publint": "0.3.25",
+		"typescript": "^7.0.2",
+		"vite-plus": "1.4.0"
 	},
 	"engines": {
 		"node": ">=23.6"

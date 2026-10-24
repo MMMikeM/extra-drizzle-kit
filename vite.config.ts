@@ -15,7 +15,10 @@ export default defineConfig({
 		dts: true,
 		clean: true,
 		unbundle: true,
+		// attw, publint and the bundler only warn by default; these make each one fail the build instead.
 		failOnWarn: true,
+		attw: { profile: "esm-only", level: "error" },
+		publint: { strict: true },
 		plugins: [
 			{
 				name: "agents-md",

@@ -1,0 +1,86 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write # create the GitHub Release
+  id-token: write # npm provenance
+
+jobs:
+  check:
+    uses: ./.github/workflows/ci.yml
+
+  release:
+    needs: check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "26"
+          registry-url: "https://registry.npmjs.org"
+          cache: pnpm
+
+      - run: pnpm ci
+
+      # No check step: `prepublishOnly` runs the checks and the build before the publish below, and covers a
+      # manual `pnpm publish` too.
+
+      - name: Derive version, dist-tag, and release notes
+        id: meta
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+          # 1.0.0-rc.5 publishes under dist-tag "rc", as drizzle-kit's does, never "latest".
+          if [[ "$VERSION" == *-* ]]; then
+            TAG="${VERSION#*-}"; TAG="${TAG%%.*}"
+            echo "dist_tag=$TAG" >> "$GITHUB_OUTPUT"
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "dist_tag=latest" >> "$GITHUB_OUTPUT"
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          node scripts/extract-changelog.ts "$VERSION" > RELEASE_NOTES.md
+          echo "--- release notes ---"; cat RELEASE_NOTES.md
+
+      # Tag-derived values go through `env:`, never `${{ }}` interpolation: git permits characters a shell would
+      # treat as syntax.
+      - name: Guard — tag must match package.json, and the changelog section must be dated
+        run: |
+          PKG=$(node -p "require('./package.json').version")
+          if [ "$PKG" != "$VERSION" ]; then
+            echo "::error::tag v$VERSION does not match package.json ($PKG)"
+            exit 1
+          fi
+          if grep -q "^## \[$VERSION\] - Unreleased" CHANGELOG.md; then
+            echo "::error::CHANGELOG.md still marks $VERSION as Unreleased"
+            exit 1
+          fi
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+
+      - name: Publish to npm
+        run: pnpm publish --provenance --access public --no-git-checks --tag "$DIST_TAG"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          DIST_TAG: ${{ steps.meta.outputs.dist_tag }}
+
+      - name: Create GitHub Release
+        run: |
+          if [ "$PRERELEASE" = "true" ]; then PRERELEASE_FLAG=--prerelease; fi
+          gh release create "$GITHUB_REF_NAME" \
+            --title "v$VERSION" \
+            --notes-file RELEASE_NOTES.md \
+            ${PRERELEASE_FLAG:-}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.meta.outputs.version }}
+          PRERELEASE: ${{ steps.meta.outputs.prerelease }}
