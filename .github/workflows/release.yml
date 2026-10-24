@@ -29,8 +29,8 @@ jobs:
 
       - run: pnpm ci
 
-      # No check step: `prepublishOnly` runs the checks and the build before the publish below, and covers a
-      # manual `pnpm publish` too.
+      # No check step here: the `check` job above already ran the suite on this commit.
+      - run: pnpm run build
 
       - name: Derive version, dist-tag, and release notes
         id: meta
@@ -67,8 +67,15 @@ jobs:
         env:
           VERSION: ${{ steps.meta.outputs.version }}
 
+      - run: pnpm pack --pack-destination "$RUNNER_TEMP/package"
+
+      # npm's trusted publishing is an npm CLI feature (11.5.1 or later), so npm publishes the tarball pnpm packed.
+      # It runs outside the checkout because npm refuses to work in a project whose devEngines names pnpm. npm tries
+      # trusted publishing first and falls back to NPM_TOKEN, which only the first release needs: npm can't attach a
+      # trusted publisher to a package that doesn't exist yet.
       - name: Publish to npm
-        run: pnpm publish --provenance --access public --no-git-checks --tag "$DIST_TAG"
+        working-directory: ${{ runner.temp }}/package
+        run: npm publish ./*.tgz --provenance --access public --tag "$DIST_TAG"
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           DIST_TAG: ${{ steps.meta.outputs.dist_tag }}

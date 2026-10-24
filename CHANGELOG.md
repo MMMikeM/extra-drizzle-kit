@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 version the release targets, so a release can change behavior without a major version bump; the entries say
 when it does.
 
-## [1.0.0-rc.5] - Unreleased
+## [1.0.0-rc.5] - 2026-10-24
 
 The first release, for drizzle-kit and drizzle-orm `1.0.0-rc.5`.
 
