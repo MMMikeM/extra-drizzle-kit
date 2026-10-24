@@ -1,0 +1,52 @@
+{
+	"name": "drizzle-matview-kit",
+	"version": "1.0.0-rc.5",
+	"description": "Indexes on materialized views, and migrations that recreate the views that depend on a changed one, for drizzle-kit generate on Postgres.",
+	"license": "MIT",
+	"author": "Mike Murray",
+	"type": "module",
+	"files": [
+		"dist"
+	],
+	"sideEffects": false,
+	"bin": {
+		"drizzle-matview-kit": "./dist/cli.mjs"
+	},
+	"exports": {
+		".": {
+			"types": "./dist/index.d.mts",
+			"default": "./dist/index.mjs"
+		}
+	},
+	"scripts": {
+		"build": "vp pack",
+		"lint:types": "tsc -p tsconfig.json && tsc -p tsconfig.check.json",
+		"test": "vp test run",
+		"test:unit": "vp test run test/unit"
+	},
+	"peerDependencies": {
+		"drizzle-kit": "1.0.0-rc.5",
+		"drizzle-orm": "1.0.0-rc.5"
+	},
+	"devDependencies": {
+		"@testcontainers/postgresql": "^12.2.1",
+		"@types/node": "^26.6.5",
+		"@types/pg": "^8.23.1",
+		"pg": "^8.23.1",
+		"typescript": "^7.0.2",
+		"vite-plus": "1.4.0",
+		"drizzle-kit": "1.0.0-rc.5",
+		"drizzle-orm": "1.0.0-rc.5"
+	},
+	"engines": {
+		"node": ">=23.6"
+	},
+	"devEngines": {
+		"packageManager": {
+			"name": "pnpm",
+			"version": "12.15.0",
+			"onFail": "download"
+		}
+	},
+	"packageManager": "pnpm@12.15.0"
+}

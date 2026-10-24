@@ -1,0 +1,11 @@
+// Typechecks the tests. The fixture is left out: kit loads it with jiti, which takes the extensionless imports a
+// real project uses.
+{
+	"extends": "./tsconfig.json",
+	"compilerOptions": {
+		"isolatedDeclarations": false,
+		"declaration": false
+	},
+	"include": ["src/**/*.ts", "test/**/*.ts", "vite.config.ts"],
+	"exclude": ["test/fixture", "test/.tmp"]
+}

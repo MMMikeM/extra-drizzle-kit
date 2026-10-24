@@ -1,0 +1,19 @@
+import { defineConfig } from "vite-plus"
+
+export default defineConfig({
+	test: {
+		environment: "node",
+		include: ["test/**/*.test.ts"],
+		// Each integration test starts a Postgres container and runs drizzle-kit as a child process.
+		testTimeout: 120_000,
+		hookTimeout: 180_000,
+	},
+	pack: {
+		entry: ["./src/index.ts", "./src/cli.ts"],
+		format: ["esm"],
+		dts: true,
+		clean: true,
+		unbundle: true,
+		failOnWarn: true,
+	},
+})

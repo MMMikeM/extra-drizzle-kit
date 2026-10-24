@@ -1,0 +1,14 @@
+catalog:
+  vite: npm:@voidzero-dev/vite-plus-core@1.4.0
+overrides:
+  vite: 'catalog:'
+peerDependencyRules:
+  allowAny:
+    - vite
+  allowedVersions:
+    vite: '*'
+# Optional native speedups for testcontainers' SSH transport, which a local docker socket doesn't use.
+allowBuilds:
+  cpu-features: false
+  protobufjs: false
+  ssh2: false
